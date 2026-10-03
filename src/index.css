@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Inter', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #111111;
+  background: #fff8e8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #fff8e8;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+a {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+button:active,
+a:active {
+  transform: translate(3px, 3px);
+}
+
+::selection {
+  background: #ffd700;
+}
+
+.font-display {
+  font-family: 'Baloo 2', 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif;
+}
