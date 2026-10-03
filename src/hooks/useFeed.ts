@@ -1,93 +1,81 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getFeed } from '../services/feedApi'
-import type { Activity, FeedResponse } from '../types'
+import { getLearningFeed, getBackendMode } from '../services/cardService'
+import type { BackendMode, NormalizedLearningCard } from '../types'
 
-const parseOptions = (value: string[] | string | undefined) => {
-  if (!value) return []
-
-  if (Array.isArray(value)) return value
-
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return [value]
-  }
+interface FeedState {
+  cards: NormalizedLearningCard[]
+  loading: boolean
+  error: string | null
+  feedUserId: number | null
+  backendMode: BackendMode | null
 }
 
-const normalizeActivities = (activities: Activity[]) => activities.map((activity) => ({
-  ...activity,
-  options: parseOptions(activity.options),
-}))
+export function useFeed(userId: number | null, initialCards?: NormalizedLearningCard[]) {
+  const hasFreshInitialCards = Boolean(userId && initialCards && initialCards.length > 0)
 
-export function useFeed(userId: number | null, initialFeed?: FeedResponse) {
-  const hasFreshInitialFeed = Boolean(userId && initialFeed?.user_id === userId)
-  const [activities, setActivities] = useState<Activity[]>(() => (
-    hasFreshInitialFeed && initialFeed ? normalizeActivities(initialFeed.activities) : []
-  ))
-  const [loading, setLoading] = useState(Boolean(userId && !hasFreshInitialFeed))
-  const [error, setError] = useState<string | null>(null)
-  const [feedUserId, setFeedUserId] = useState<number | null>(() => (
-    hasFreshInitialFeed && userId ? userId : null
-  ))
+  const [state, setState] = useState<FeedState>({
+    cards: hasFreshInitialCards && initialCards ? initialCards : [],
+    loading: Boolean(userId && !hasFreshInitialCards),
+    error: null,
+    feedUserId: hasFreshInitialCards ? userId : null,
+    backendMode: null,
+  })
   const [request, setRequest] = useState(0)
 
   const refetch = useCallback(() => {
     setRequest((current) => current + 1)
   }, [])
 
-  const replaceFeed = useCallback((feed: FeedResponse) => {
-    setActivities(normalizeActivities(feed.activities))
-    setFeedUserId(feed.user_id)
-    setError(null)
-    setLoading(false)
+  const replaceFeed = useCallback((cards: NormalizedLearningCard[], feedUser: number) => {
+    setState((prev) => ({
+      ...prev,
+      cards,
+      feedUserId: feedUser,
+      error: null,
+      loading: false,
+    }))
   }, [])
 
   useEffect(() => {
     if (!userId) return
-
-    if (initialFeed?.user_id === userId && request === 0) {
-      return
-    }
+    if (hasFreshInitialCards && request === 0) return
 
     let cancelled = false
 
     const fetchFeed = async () => {
-      setLoading(true)
-      setError(null)
+      setState((prev) => ({ ...prev, loading: true, error: null }))
 
       try {
-        const response: FeedResponse = await getFeed(userId)
+        const cards = await getLearningFeed(userId)
+        const mode = await getBackendMode(userId)
 
         if (!cancelled) {
-          setActivities(normalizeActivities(response.activities))
-          setFeedUserId(response.user_id)
+          setState({ cards, loading: false, error: null, feedUserId: userId, backendMode: mode })
         }
       } catch (err) {
         if (!cancelled) {
-          setFeedUserId(userId)
-          setError(err instanceof Error ? err.message : 'Unable to load feed')
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
+          setState((prev) => ({
+            ...prev,
+            loading: false,
+            feedUserId: userId,
+            error: err instanceof Error ? err.message : 'Unable to load feed',
+          }))
         }
       }
     }
 
     void fetchFeed()
 
-    return () => {
-      cancelled = true
-    }
-  }, [initialFeed, request, userId])
+    return () => { cancelled = true }
+  }, [hasFreshInitialCards, request, userId])
 
-  const hasCurrentFeed = Boolean(userId && feedUserId === userId)
+  const hasCurrentFeed = Boolean(userId && state.feedUserId === userId)
 
   return {
-    activities: hasCurrentFeed ? activities : [],
-    loading: Boolean(userId && (loading || !hasCurrentFeed)),
-    error: hasCurrentFeed ? error : null,
+    cards: hasCurrentFeed ? state.cards : [],
+    loading: Boolean(userId && (state.loading || !hasCurrentFeed)),
+    error: hasCurrentFeed ? state.error : null,
+    backendMode: state.backendMode,
     replaceFeed,
     refetch,
   }

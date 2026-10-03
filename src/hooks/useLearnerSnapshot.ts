@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getEngagement } from '../services/interactionApi'
-import { getFeed } from '../services/feedApi'
-import type { Activity, EngagementState, FeedResponse } from '../types'
+import { getLearningFeed } from '../services/cardService'
+import type { EngagementState, NormalizedLearningCard } from '../types'
 
 interface LearnerSnapshot {
   userId: number | null
   request: number
-  activities: Activity[]
+  cards: NormalizedLearningCard[]
   engagement: EngagementState | null
   error: string | null
 }
@@ -14,7 +14,7 @@ interface LearnerSnapshot {
 const initialSnapshot: LearnerSnapshot = {
   userId: null,
   request: -1,
-  activities: [],
+  cards: [],
   engagement: null,
   error: null,
 }
@@ -36,8 +36,8 @@ export function useLearnerSnapshot(userId: number | null) {
 
     const loadSnapshot = async () => {
       try {
-        const [feed, engagement]: [FeedResponse, EngagementState] = await Promise.all([
-          getFeed(userId),
+        const [feedCards, engagement] = await Promise.all([
+          getLearningFeed(userId),
           getEngagement(userId),
         ])
 
@@ -45,7 +45,7 @@ export function useLearnerSnapshot(userId: number | null) {
           setSnapshot({
             userId,
             request,
-            activities: feed.activities,
+            cards: feedCards,
             engagement,
             error: null,
           })
@@ -55,7 +55,7 @@ export function useLearnerSnapshot(userId: number | null) {
           setSnapshot({
             userId,
             request,
-            activities: [],
+            cards: [],
             engagement: null,
             error: error instanceof Error ? error.message : 'Unable to load learner data',
           })

@@ -6,10 +6,9 @@ import InterventionCard from '../components/InterventionCard'
 import LoadingState from '../components/LoadingState'
 import { useAppContext } from '../context/AppContext'
 import { useFeed } from '../hooks/useFeed'
-import { useInteraction } from '../hooks/useInteraction'
 import { getEngagement } from '../services/interactionApi'
-import { getFeed } from '../services/feedApi'
-import type { Activity, EngagementState, FeedResponse } from '../types'
+import { getLearningFeed } from '../services/cardService'
+import type { EngagementState, NormalizedLearningCard } from '../types'
 
 const getDismissedSessionUser = (userId: number | null) => {
   if (!userId || typeof window === 'undefined') return null
@@ -30,7 +29,7 @@ interface EngagementSnapshot {
   error?: string
 }
 
-const activityPriority: Record<Activity['type'], number> = {
+const activityPriority: Record<string, number> = {
   coding: 0,
   simulation: 1,
   build: 2,
@@ -41,16 +40,16 @@ const activityPriority: Record<Activity['type'], number> = {
 
 interface FeedNavigationState {
   adaptiveRefresh?: boolean
-  refreshedFeed?: FeedResponse
+  refreshedFeed?: NormalizedLearningCard[]
 }
 
 export default function Feed() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { userId, setCurrentActivity, setUser, setUserId } = useAppContext()
+  const { userId, setCurrentCard, setUser, setUserId } = useAppContext()
   const navigationState = location.state as FeedNavigationState | null
-  const { activities, loading, error, replaceFeed } = useFeed(userId, navigationState?.refreshedFeed)
-  const { logInteraction } = useInteraction()
+  const { cards: activities, loading, error, replaceFeed } = useFeed(userId, navigationState?.refreshedFeed)
+  
   const [engagementRequest, setEngagementRequest] = useState(0)
   const [engagementSnapshot, setEngagementSnapshot] = useState<EngagementSnapshot | null>(null)
   const [dismissedUserId, setDismissedUserId] = useState<number | null>(() => getDismissedSessionUser(userId))
@@ -73,13 +72,12 @@ export default function Feed() {
   const interventionActive = engagement?.intervention === true && !dismissedIntervention
   const interventionActivity = useMemo(() => {
     const preferred = activities.filter((activity) => (
-      ['coding', 'simulation', 'build', 'quiz'].includes(activity.type)
+      activity.stepTypes?.some(type => ['build', 'solve'].includes(type))
     ))
     const candidates = preferred.length > 0 ? preferred : activities
 
     return [...candidates].sort((a, b) => (
-      a.duration - b.duration
-      || activityPriority[a.type] - activityPriority[b.type]
+      a.estimatedTime - b.estimatedTime
     ))[0] ?? null
   }, [activities])
 
@@ -120,9 +118,9 @@ export default function Feed() {
     navigate('/onboarding', { replace: true })
   }, [error, navigate, setUser, setUserId])
 
-  const handleOpenActivity = (activity: Activity) => {
-    setCurrentActivity(activity)
-    navigate(`/activity/${activity.id}`)
+  const handleOpenActivity = (card: NormalizedLearningCard) => {
+    setCurrentCard(card)
+    navigate(`/activity/${card.id}`)
   }
 
   const handleKeepExploring = () => {
@@ -142,49 +140,13 @@ export default function Feed() {
     setIsRefreshingFeed(true)
     setFeedRefreshError(null)
     try {
-      const refreshedFeed = await getFeed(userId)
-      if (!Array.isArray(refreshedFeed.activities)) {
-        throw new Error('The learning engine returned an invalid feed.')
-      }
-      replaceFeed(refreshedFeed)
+      const refreshedFeed = await getLearningFeed(userId)
+      replaceFeed(refreshedFeed, userId)
       setEngagementRequest((request) => request + 1)
     } catch (refreshError) {
       setFeedRefreshError(refreshError instanceof Error ? refreshError.message : 'Could not load recommendations.')
     } finally {
       setIsRefreshingFeed(false)
-    }
-  }
-
-  const handleSkipActivity = async (activity: Activity, idempotencyKey: string) => {
-    if (!userId) return false
-    setFeedRefreshError(null)
-    const interaction = await logInteraction(
-      userId,
-      activity,
-      'skip',
-      { completed: false },
-      idempotencyKey,
-    )
-
-    if (!interaction) return false
-
-    try {
-      const refreshedFeed = await getFeed(userId)
-      if (!Array.isArray(refreshedFeed.activities)) {
-        throw new Error('The learning engine returned an invalid feed.')
-      }
-
-      replaceFeed(refreshedFeed)
-      setAdaptiveRefresh(true)
-      setEngagementRequest((request) => request + 1)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return true
-    } catch (refreshError) {
-      const message = refreshError instanceof Error
-        ? refreshError.message
-        : 'Could not load the updated recommendations.'
-      setFeedRefreshError(`Your skip was saved, but the feed could not refresh. Retry Skip to try again. ${message}`)
-      return false
     }
   }
 
@@ -217,10 +179,12 @@ export default function Feed() {
 
       {adaptiveRefresh ? (
         <section className="mb-6 rounded-[24px] border-[3px] border-black bg-[#00FF7F] p-5 shadow-[5px_5px_0_#111]" aria-labelledby="fresh-feed-title">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#4B0082]">Adaptive feed</p>
+          <p className="inline-flex items-center gap-2 rounded-full border-2 border-black bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#4B0082]">
+             <Sparkles size={13} aria-hidden="true" /> The system learns from you
+          </p>
           <h2 id="fresh-feed-title" className="mt-2 text-xl font-black uppercase">Fresh recommendations, just loaded</h2>
           <p className="mt-2 text-sm font-semibold text-[#111111]">
-            These activities came from the learning engine after your saved interaction. Check each card’s “Why this?” reasons.
+            These activities came from the learning engine after your saved interaction.
           </p>
         </section>
       ) : null}
@@ -266,8 +230,8 @@ export default function Feed() {
       {interventionActive && engagement && !loading ? (
         <InterventionCard
           engagement={engagement}
-          activity={interventionActivity}
-          onTryChallenge={handleOpenActivity}
+          activity={interventionActivity as any}
+          onTryChallenge={(act) => handleOpenActivity(act as NormalizedLearningCard)}
           onKeepExploring={handleKeepExploring}
           onRetryFeed={() => void handleRetryFeed()}
         />
@@ -290,12 +254,12 @@ export default function Feed() {
 
       {!engagementLoading && !interventionActive && !loading && !error && activities.length > 0 ? (
         <div className="space-y-6">
-          {activities.map((activity) => (
+          {activities.map((card, index) => (
             <ActivityCard
-              key={activity.id}
-              activity={activity}
+              key={card.id}
+              card={card}
+              index={index}
               onOpen={handleOpenActivity}
-              onSkip={handleSkipActivity}
             />
           ))}
         </div>

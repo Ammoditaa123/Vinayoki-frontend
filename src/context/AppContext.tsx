@@ -7,54 +7,27 @@ import {
   type ReactNode,
 } from 'react'
 import type {
-  Activity,
   AppContextValue,
+  BackendMode,
+  LegacyActivity,
+  NormalizedLearningCard,
   OnboardingData,
-  ProgressState,
   User,
 } from '../types'
 
 const STORAGE_KEY = 'vinayoki-user-id'
 const USER_STORAGE_KEY = 'vinayoki-user-profile'
-const ACTIVITY_STORAGE_KEY = 'vinayoki-current-activity'
-const activityTypes = ['micro_lesson', 'quiz', 'simulation', 'coding', 'build', 'career']
+const CARD_STORAGE_KEY = 'vinayoki-current-card'
 
-function getStoredUser(): User | null {
-  if (typeof window === 'undefined') return null
-
-  try {
-    const saved = window.localStorage.getItem(USER_STORAGE_KEY)
-    if (!saved) return null
-
-    const parsed: unknown = JSON.parse(saved)
-    if (
-      typeof parsed === 'object'
-      && parsed !== null
-      && 'id' in parsed
-      && typeof parsed.id === 'number'
-      && Number.isInteger(parsed.id)
-      && 'name' in parsed
-      && typeof parsed.name === 'string'
-      && 'goal' in parsed
-      && typeof parsed.goal === 'string'
-      && getStoredUserId() === parsed.id
-    ) {
-      return parsed as User
-    }
-  } catch {
-    // Ignore invalid or unavailable local storage and continue without saved profile details.
-  }
-
-  return null
-}
+// ---------------------------------------------------------------------------
+// Storage helpers
+// ---------------------------------------------------------------------------
 
 function getStoredUserId(): number | null {
   if (typeof window === 'undefined') return null
-
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY)
     if (!saved) return null
-
     const userId = Number(saved)
     return Number.isInteger(userId) && userId > 0 ? userId : null
   } catch {
@@ -62,54 +35,64 @@ function getStoredUserId(): number | null {
   }
 }
 
-function getStoredActivity(): Activity | null {
+function getStoredUser(): User | null {
   if (typeof window === 'undefined') return null
-
   try {
-    const saved = window.sessionStorage.getItem(ACTIVITY_STORAGE_KEY)
+    const saved = window.localStorage.getItem(USER_STORAGE_KEY)
     if (!saved) return null
-
     const parsed: unknown = JSON.parse(saved)
     if (
-      typeof parsed === 'object'
-      && parsed !== null
-      && 'id' in parsed
-      && typeof parsed.id === 'number'
-      && Number.isInteger(parsed.id)
-      && parsed.id > 0
-      && 'title' in parsed
-      && typeof parsed.title === 'string'
-      && 'topic' in parsed
-      && typeof parsed.topic === 'string'
-      && 'skill' in parsed
-      && typeof parsed.skill === 'string'
-      && 'type' in parsed
-      && typeof parsed.type === 'string'
-      && activityTypes.includes(parsed.type)
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'id' in parsed &&
+      typeof (parsed as { id: unknown }).id === 'number' &&
+      'name' in parsed &&
+      typeof (parsed as { name: unknown }).name === 'string' &&
+      getStoredUserId() === (parsed as { id: number }).id
     ) {
-      return parsed as Activity
+      return parsed as User
     }
   } catch {
-    // Ignore invalid or unavailable session storage and resolve the activity from the API.
-    return null
+    // Ignore corrupt storage
   }
-
   return null
 }
 
-const defaultOnboarding: OnboardingData = {
-  goal: 'Explore',
-  skillLevel: 'Beginner',
-  learningStyle: 'Solve',
+function getStoredCard(): NormalizedLearningCard | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const saved = window.sessionStorage.getItem(CARD_STORAGE_KEY)
+    if (!saved) return null
+    const parsed: unknown = JSON.parse(saved)
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'id' in parsed &&
+      typeof (parsed as { id: unknown }).id === 'number' &&
+      'title' in parsed
+    ) {
+      return parsed as NormalizedLearningCard
+    }
+  } catch {
+    return null
+  }
+  return null
 }
 
-const defaultProgress: ProgressState = {
-  progress: 0,
-  meaningfulActions: 0,
-  activitiesCompleted: 0,
-  skillsImproved: 0,
-  artifacts: 0,
+// ---------------------------------------------------------------------------
+// Defaults
+// ---------------------------------------------------------------------------
+
+const defaultOnboarding: OnboardingData = {
+  name: '',
+  goal: 'Explore tech careers',
+  skillLevel: 'Beginner',
+  learningStyle: 'Explore',
 }
+
+// ---------------------------------------------------------------------------
+// Context
+// ---------------------------------------------------------------------------
 
 const AppContext = createContext<AppContextValue | undefined>(undefined)
 
@@ -117,12 +100,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(getStoredUser)
   const [userId, setUserId] = useState<number | null>(getStoredUserId)
   const [onboarding, setOnboarding] = useState<OnboardingData>(defaultOnboarding)
-  const [currentActivity, setCurrentActivity] = useState<Activity | null>(getStoredActivity)
-  const [progressState, setProgressState] = useState<ProgressState>(defaultProgress)
+  const [currentCard, setCurrentCard] = useState<NormalizedLearningCard | null>(getStoredCard)
+  const [currentActivity, setCurrentActivity] = useState<LegacyActivity | null>(null)
+  const [backendMode, setBackendMode] = useState<BackendMode | null>(null)
 
+  // Persist userId
   useEffect(() => {
     if (typeof window === 'undefined') return
-
     try {
       if (userId !== null && Number.isInteger(userId) && userId > 0) {
         window.localStorage.setItem(STORAGE_KEY, String(userId))
@@ -130,13 +114,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         window.localStorage.removeItem(STORAGE_KEY)
       }
     } catch {
-      // Keep the in-memory learner session even if local storage is unavailable.
+      // Memory fallback
     }
   }, [userId])
 
+  // Persist user profile
   useEffect(() => {
     if (typeof window === 'undefined') return
-
     try {
       if (user) {
         window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user))
@@ -144,23 +128,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         window.localStorage.removeItem(USER_STORAGE_KEY)
       }
     } catch {
-      // Keep profile details in memory if local storage is unavailable.
+      // Memory fallback
     }
   }, [user])
 
+  // Persist current card to session storage (clears on tab close)
   useEffect(() => {
     if (typeof window === 'undefined') return
-
     try {
-      if (currentActivity) {
-        window.sessionStorage.setItem(ACTIVITY_STORAGE_KEY, JSON.stringify(currentActivity))
+      if (currentCard) {
+        window.sessionStorage.setItem(CARD_STORAGE_KEY, JSON.stringify(currentCard))
       } else {
-        window.sessionStorage.removeItem(ACTIVITY_STORAGE_KEY)
+        window.sessionStorage.removeItem(CARD_STORAGE_KEY)
       }
     } catch {
-      // Activity state remains available in memory when session storage is unavailable.
+      // Memory fallback
     }
-  }, [currentActivity])
+  }, [currentCard])
 
   const handleSetOnboardingData = (data: Partial<OnboardingData>) => {
     setOnboarding((prev) => ({ ...prev, ...data }))
@@ -171,15 +155,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       user,
       userId,
       onboarding,
+      currentCard,
       currentActivity,
-      progressState,
+      backendMode,
       setUser,
       setUserId,
       setOnboardingData: handleSetOnboardingData,
+      setCurrentCard,
       setCurrentActivity,
-      setProgressState,
+      setBackendMode,
     }),
-    [user, userId, onboarding, currentActivity, progressState],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, userId, onboarding, currentCard, currentActivity, backendMode],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
@@ -187,10 +174,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 export function useAppContext() {
   const context = useContext(AppContext)
-
   if (!context) {
     throw new Error('useAppContext must be used within AppProvider')
   }
-
   return context
 }

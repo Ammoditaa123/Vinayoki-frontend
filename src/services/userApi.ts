@@ -8,9 +8,9 @@ interface BackendUserCreatePayload {
   learning_style: string
 }
 
-export const createUser = async (payload: OnboardingData & { name?: string }) => {
+export const createUser = async (payload: OnboardingData) => {
   const backendPayload: BackendUserCreatePayload = {
-    name: payload.name ?? 'Ammoditaa',
+    name: payload.name.trim(),
     goal: String(payload.goal),
     level: String(payload.skillLevel),
     learning_style: String(payload.learningStyle),

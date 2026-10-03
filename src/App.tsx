@@ -9,6 +9,7 @@ import Feed from './pages/Feed'
 import Onboarding from './pages/Onboarding'
 import Profile from './pages/Profile'
 import ProgressPage from './pages/Progress'
+import RecruiterDashboard from './pages/RecruiterDashboard'
 import Result from './pages/Result'
 import SkillDetail from './pages/SkillDetail'
 import Welcome from './pages/Welcome'
@@ -22,7 +23,7 @@ function RequireLearner({ children }: { children: ReactNode }) {
 
 function AppShell() {
   const location = useLocation()
-  const shouldShowShell = !['/welcome', '/onboarding'].includes(location.pathname)
+  const shouldShowShell = !['/welcome', '/onboarding', '/recruiter'].includes(location.pathname)
 
   return (
     <div className="min-h-screen bg-[#FFF8E8] text-[#111111]">
@@ -34,6 +35,7 @@ function AppShell() {
           <Route path="/" element={<Navigate to="/welcome" replace />} />
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/recruiter" element={<RecruiterDashboard />} />
           <Route path="/feed" element={<RequireLearner><Feed /></RequireLearner>} />
           <Route path="/activity/:id" element={<RequireLearner><Activity /></RequireLearner>} />
           <Route path="/activity" element={<Navigate to="/feed" replace />} />

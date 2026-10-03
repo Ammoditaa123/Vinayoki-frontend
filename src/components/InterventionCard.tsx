@@ -1,11 +1,11 @@
 import { motion } from 'framer-motion'
-import { ArrowRight, Bolt, Pause } from 'lucide-react'
-import type { Activity, EngagementState } from '../types'
+import { ArrowRight, Bolt, Pause, Clock } from 'lucide-react'
+import type { EngagementState, NormalizedLearningCard } from '../types'
 
 interface InterventionCardProps {
   engagement: EngagementState
-  activity: Activity | null
-  onTryChallenge: (activity: Activity) => void
+  activity: NormalizedLearningCard | null
+  onTryChallenge: (card: NormalizedLearningCard) => void
   onKeepExploring: () => void
   onRetryFeed: () => void
 }
@@ -24,9 +24,9 @@ export function InterventionCard({
 }: InterventionCardProps) {
   return (
     <motion.section
-      initial={{ opacity: 0, y: 18, scale: 0.97 }}
+      initial={{ opacity: 0, y: 30, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 280, damping: 24 }}
+      transition={{ type: 'spring', stiffness: 280, damping: 24, delay: 0.1 }}
       aria-labelledby="intervention-title"
       aria-describedby="intervention-description"
       className="mx-auto w-full max-w-2xl rounded-[30px] border-[3px] border-black bg-[#C0F7FE] p-5 shadow-[8px_8px_0_#111] sm:p-8"
@@ -39,7 +39,7 @@ export function InterventionCard({
         Attention is only the beginning.
       </h2>
       <p id="intervention-description" className="mx-auto mt-3 max-w-lg text-center text-base font-semibold text-[#222222]">
-        You’ve explored {engagement.recent_views} {engagement.recent_views === 1 ? 'activity' : 'activities'} without a meaningful action yet. Let’s turn a few minutes into progress.
+        You’ve explored {engagement.recent_views} {engagement.recent_views === 1 ? 'activity' : 'activities'} without a meaningful action yet. Let’s turn 60 seconds into real progress.
       </p>
 
       <motion.div
@@ -65,10 +65,10 @@ export function InterventionCard({
       </motion.div>
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-[9px] font-black uppercase tracking-[0.12em] sm:text-[10px]">
-        {['Attention', 'Action', 'Evidence', 'Progress'].map((step, index) => (
+        {['Attention', 'Action', 'Feedback', 'Progress', 'Adaptation'].map((step, index) => (
           <span key={step} className="inline-flex items-center gap-2">
             <span className={`rounded-full border-2 border-black px-2.5 py-1 ${index === 0 ? 'bg-[#FFD700]' : index === 1 ? 'bg-[#00FF7F]' : 'bg-white'}`}>{step}</span>
-            {index < 3 ? <ArrowRight size={13} aria-hidden="true" /> : null}
+            {index < 4 ? <ArrowRight size={13} aria-hidden="true" /> : null}
           </span>
         ))}
       </div>
@@ -81,7 +81,9 @@ export function InterventionCard({
                 <Bolt size={20} />
               </span>
               <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.14em]">A {activity.duration}-minute challenge</p>
+                <p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.14em] text-[#D32F2F]">
+                  <Clock size={14} /> 60-Second Challenge
+                </p>
                 <p className="mt-1 text-lg font-black uppercase">{activity.title}</p>
                 <p className="mt-1 text-sm font-semibold text-[#333333]">{activity.description}</p>
               </div>
@@ -91,7 +93,7 @@ export function InterventionCard({
               onClick={() => onTryChallenge(activity)}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[18px] border-[3px] border-black bg-[#FF6F61] px-4 py-3 text-sm font-black uppercase shadow-[5px_5px_0_#111] transition-transform hover:-translate-y-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#4B0082]"
             >
-              Take a {activity.duration}-minute challenge <ArrowRight size={18} />
+              Take the challenge <ArrowRight size={18} />
             </button>
           </>
         ) : (
@@ -109,13 +111,15 @@ export function InterventionCard({
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={onKeepExploring}
-        className="mt-5 w-full rounded-[18px] border-[3px] border-black bg-white px-4 py-3 text-sm font-black uppercase shadow-[4px_4px_0_#111] focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#4B0082]"
-      >
-        Keep exploring
-      </button>
+      <div className="mt-5 text-center">
+        <button
+          type="button"
+          onClick={onKeepExploring}
+          className="inline-flex items-center justify-center rounded-[18px] px-4 py-3 text-sm font-black uppercase text-[#555] transition-colors hover:text-black focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#4B0082]"
+        >
+          Dismiss & Keep exploring
+        </button>
+      </div>
     </motion.section>
   )
 }

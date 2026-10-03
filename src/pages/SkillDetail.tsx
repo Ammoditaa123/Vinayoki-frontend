@@ -1,29 +1,31 @@
 import { useEffect, useMemo } from 'react'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import ActivityBadge from '../components/ActivityBadge'
+import ActivityCard from '../components/ActivityCard'
 import LoadingState from '../components/LoadingState'
-import RecommendationReason from '../components/RecommendationReason'
 import { useAppContext } from '../context/AppContext'
 import { useFeed } from '../hooks/useFeed'
+import type { NormalizedLearningCard } from '../types'
 
 const normalizeSkill = (value: string) => value.toLowerCase().replace(/[-_]/g, ' ').trim()
+const prettifySkill = (value: string) => value.split('_').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
 
 export default function SkillDetail() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
-  const { user, userId, setCurrentActivity, setUser, setUserId } = useAppContext()
-  const { activities, loading, error, refetch } = useFeed(userId)
+  const { user, userId, setCurrentCard, setUser, setUserId } = useAppContext()
+  const { cards, loading, error, refetch } = useFeed(userId)
+  
   const skillActivities = useMemo(
-    () => activities.filter((activity) => normalizeSkill(activity.skill) === normalizeSkill(id)),
-    [activities, id],
+    () => cards.filter((card) => normalizeSkill(card.skill) === normalizeSkill(id)),
+    [cards, id],
   )
-  const skillName = (skillActivities[0]?.skill ?? id).replace(/[-_]/g, ' ')
+  const skillName = prettifySkill(skillActivities[0]?.skill ?? id)
   const learnerLevel = user?.skillLevel ?? user?.level ?? 'Not available'
   const averageDifficulty = skillActivities.length
-    ? Math.round(skillActivities.reduce((total, activity) => total + activity.difficulty, 0) / skillActivities.length)
+    ? Math.round(skillActivities.reduce((total, card) => total + card.difficulty, 0) / skillActivities.length)
     : null
-  const estimatedMinutes = skillActivities.reduce((total, activity) => total + activity.duration, 0)
+  const estimatedMinutes = Math.ceil(skillActivities.reduce((total, card) => total + card.estimatedTime, 0) / 60)
 
   useEffect(() => {
     if (!error?.toLowerCase().includes('user not found')) return
@@ -32,12 +34,9 @@ export default function SkillDetail() {
     navigate('/onboarding', { replace: true })
   }, [error, navigate, setUser, setUserId])
 
-  const openActivity = (activityId: number) => {
-    const activity = skillActivities.find((item) => item.id === activityId)
-    if (!activity) return
-
-    setCurrentActivity(activity)
-    navigate(`/activity/${activity.id}`)
+  const openActivity = (card: NormalizedLearningCard) => {
+    setCurrentCard(card)
+    navigate(`/activity/${card.id}`)
   }
 
   return (
@@ -96,40 +95,15 @@ export default function SkillDetail() {
               This skill is not in your current recommendations. Check your feed for the latest focus areas.
             </p>
           ) : null}
-          <div className="mt-4 space-y-3">
-            {skillActivities.map((activity) => {
-              const progressLabel = activity.type === 'build' || activity.type === 'micro_lesson'
-                ? `+${activity.progress_value}`
-                : '3–5'
-
-              return (
-                <article key={activity.id} className="rounded-[22px] border-[3px] border-black bg-white p-4 shadow-[4px_4px_0_#111] sm:p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-3 flex flex-wrap items-center gap-2">
-                        <ActivityBadge type={activity.type} />
-                        <span className="rounded-full border-2 border-black bg-[#FFF8E8] px-2.5 py-1 text-[10px] font-black uppercase">{activity.duration} min</span>
-                      </div>
-                      <h3 className="text-xl font-black uppercase leading-tight">{activity.title}</h3>
-                      <p className="mt-2 text-sm font-semibold text-[#333333]">{activity.description}</p>
-                    </div>
-                    <span className="inline-flex shrink-0 rounded-[14px] border-[3px] border-black bg-[#FFD700] px-3 py-2 text-xs font-black uppercase shadow-[3px_3px_0_#111]">
-                      {progressLabel} progress
-                    </span>
-                  </div>
-                  <div className="mt-4 rounded-[16px] border-2 border-black bg-[#C0F7FE] p-3">
-                    <RecommendationReason reasons={activity.why_this ?? ['Recommended to explore a new skill']} />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void openActivity(activity.id)}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[16px] border-[3px] border-black bg-[#FF6F61] px-4 py-3 text-sm font-black uppercase shadow-[4px_4px_0_#111] transition-transform hover:-translate-y-1 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#4B0082] sm:w-auto"
-                  >
-                    Next challenge <ArrowRight size={16} />
-                  </button>
-                </article>
-              )
-            })}
+          <div className="mt-4 space-y-6">
+            {skillActivities.map((card, index) => (
+              <ActivityCard
+                key={card.id}
+                card={card}
+                index={index}
+                onOpen={openActivity}
+              />
+            ))}
           </div>
         </div>
       </div>
