@@ -1,6 +1,6 @@
-# Momentum
+# VINAYOKI
 
-Momentum is a learning feed that turns short bursts of attention into practical action. The frontend consumes an existing FastAPI REST API; recommendation and engagement logic remain backend-driven.
+Vinayoki is a learning feed that turns short bursts of attention into practical action. The frontend consumes an existing FastAPI REST API; recommendation and engagement logic remain backend-driven.
 
 ## Stack
 
